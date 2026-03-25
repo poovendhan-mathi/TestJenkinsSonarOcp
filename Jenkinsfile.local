@@ -1,0 +1,145 @@
+// ============================================================
+// JENKINSFILE.LOCAL — Local Testing Pipeline
+// ============================================================
+// This pipeline runs everything that works LOCALLY:
+//   1. Checkout code from GitHub
+//   2. Install npm dependencies
+//   3. Lint (code style check)
+//   4. Build the Next.js app
+//   5. Run tests with coverage
+//   6. SonarQube analysis (code quality)
+//   7. Quality Gate check
+//   8. Security scan with Trivy
+//
+// DOES NOT include: Docker build, Docker Hub push, OpenShift deploy
+// (Those are in the main Jenkinsfile for later phases)
+// ============================================================
+
+pipeline {
+    agent any
+
+    tools {
+        nodejs 'NodeJS-20'
+    }
+
+    environment {
+        APP_NAME = 'expense-tracker'
+    }
+
+    options {
+        timeout(time: 15, unit: 'MINUTES')
+        disableConcurrentBuilds()
+        timestamps()
+    }
+
+    stages {
+
+        // ── STAGE 1: Checkout ──
+        stage('Checkout') {
+            steps {
+                checkout scm
+                echo "Branch: ${env.BRANCH_NAME ?: 'N/A'}"
+                echo "Commit: ${env.GIT_COMMIT ?: 'N/A'}"
+            }
+        }
+
+        // ── STAGE 2: Install Dependencies ──
+        stage('Install') {
+            steps {
+                echo '📦 Installing npm dependencies...'
+                sh 'npm ci'
+            }
+        }
+
+        // ── STAGE 3: Lint ──
+        stage('Lint') {
+            steps {
+                echo '🔍 Checking code style...'
+                sh 'npm run lint'
+            }
+        }
+
+        // ── STAGE 4: Build ──
+        stage('Build') {
+            steps {
+                echo '🏗️ Building Next.js app...'
+                sh 'npm run build'
+            }
+        }
+
+        // ── STAGE 5: Test ──
+        stage('Test') {
+            steps {
+                echo '🧪 Running tests with coverage...'
+                sh 'npm run test:coverage'
+            }
+            post {
+                always {
+                    // Publish test results (JUnit format)
+                    junit allowEmptyResults: true, testResults: 'test-results/*.xml'
+                }
+            }
+        }
+
+        // ── STAGE 6: SonarQube Analysis ──
+        stage('SonarQube Analysis') {
+            steps {
+                echo '📊 Scanning code quality with SonarQube...'
+                withSonarQubeEnv('SonarQube-Local') {
+                    sh "${tool('SonarScanner')}/bin/sonar-scanner"
+                }
+            }
+        }
+
+        // ── STAGE 7: Quality Gate ──
+        stage('Quality Gate') {
+            steps {
+                echo '🚦 Waiting for SonarQube Quality Gate result...'
+                timeout(time: 2, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+
+        // ── STAGE 8: Security Scan ──
+        stage('Security Scan (Trivy)') {
+            steps {
+                echo '🛡️ Scanning for security vulnerabilities...'
+                sh '''
+                    trivy fs \
+                        --severity HIGH,CRITICAL \
+                        --format table \
+                        --exit-code 0 \
+                        .
+                '''
+                echo '✅ Security scan complete (results above)'
+            }
+        }
+    }
+
+    post {
+        success {
+            echo '''
+╔══════════════════════════════════════╗
+║   ✅ PIPELINE PASSED!               ║
+║                                      ║
+║   All stages completed successfully  ║
+║   Code is clean and tested!          ║
+╚══════════════════════════════════════╝
+'''
+        }
+        failure {
+            echo '''
+╔══════════════════════════════════════╗
+║   ❌ PIPELINE FAILED!               ║
+║                                      ║
+║   Check the failed stage above       ║
+║   Fix the issue and push again       ║
+╚══════════════════════════════════════╝
+'''
+        }
+        always {
+            cleanWs()
+        }
+    }
+}
