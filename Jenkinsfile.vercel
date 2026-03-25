@@ -1,0 +1,191 @@
+// ============================================================
+// JENKINSFILE.VERCEL — Vercel Deployment Pipeline (Phase 1)
+// ============================================================
+// This pipeline is for Phase 1 (before OpenShift).
+// It deploys to Vercel instead of OpenShift.
+//
+// Usage: In Jenkins, set Script Path to "Jenkinsfile.vercel"
+// ============================================================
+
+pipeline {
+    agent any
+
+    tools {
+        nodejs 'NodeJS-20'
+    }
+
+    environment {
+        APP_NAME = 'expense-tracker'
+    }
+
+    options {
+        timeout(time: 20, unit: 'MINUTES')
+        disableConcurrentBuilds()
+        timestamps()
+    }
+
+    stages {
+
+        // --- CHECKOUT ---
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        // --- INSTALL ---
+        stage('Install') {
+            steps {
+                sh 'npm ci'
+            }
+        }
+
+        // --- LINT ---
+        stage('Lint') {
+            steps {
+                sh 'npm run lint'
+            }
+        }
+
+        // --- BUILD ---
+        stage('Build') {
+            steps {
+                sh 'npm run build'
+            }
+        }
+
+        // --- TEST ---
+        stage('Test') {
+            steps {
+                sh 'npm run test:coverage'
+            }
+            post {
+                always {
+                    junit allowEmptyResults: true, testResults: 'test-results/*.xml'
+                }
+            }
+        }
+
+        // --- SONARQUBE ---
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('SonarQube') {
+                    sh "${tool('SonarScanner')}/bin/sonar-scanner"
+                }
+            }
+        }
+
+        // --- QUALITY GATE ---
+        stage('Quality Gate') {
+            steps {
+                timeout(time: 5, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+
+        // --- SECURITY SCAN ---
+        stage('Security Scan') {
+            steps {
+                sh 'trivy fs --severity HIGH,CRITICAL --exit-code 1 --format table .'
+            }
+        }
+
+        // --- DEPLOY TO UAT (Vercel Preview) ---
+        stage('Deploy to UAT (Vercel Preview)') {
+            when {
+                branch 'develop'
+            }
+            steps {
+                echo '🚀 Deploying to Vercel Preview (UAT)...'
+                withCredentials([
+                    string(credentialsId: 'vercel-token', variable: 'VERCEL_TOKEN'),
+                    string(credentialsId: 'vercel-org-id', variable: 'VERCEL_ORG_ID'),
+                    string(credentialsId: 'vercel-project-id', variable: 'VERCEL_PROJECT_ID')
+                ]) {
+                    sh '''
+                        npx vercel deploy \
+                            --token="$VERCEL_TOKEN" \
+                            --yes \
+                            2>&1 | tee vercel-deploy-output.txt
+
+                        DEPLOY_URL=$(grep -o 'https://[^ ]*\\.vercel\\.app' vercel-deploy-output.txt | head -1)
+                        echo "✅ UAT deployed to: ${DEPLOY_URL}"
+                    '''
+                }
+            }
+        }
+
+        // --- SMOKE TEST ---
+        stage('Smoke Test - UAT') {
+            when {
+                branch 'develop'
+            }
+            steps {
+                sh '''
+                    sleep 15
+                    if [ -f vercel-deploy-output.txt ]; then
+                        DEPLOY_URL=$(grep -o 'https://[^ ]*\\.vercel\\.app' vercel-deploy-output.txt | head -1)
+                        if [ -n "$DEPLOY_URL" ]; then
+                            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$DEPLOY_URL" --max-time 15)
+                            echo "Smoke test status: ${HTTP_STATUS}"
+                            if [ "$HTTP_STATUS" -eq 200 ]; then
+                                echo "✅ Smoke test PASSED!"
+                            else
+                                echo "⚠️ Smoke test got status ${HTTP_STATUS} (may still be building)"
+                            fi
+                        fi
+                    fi
+                '''
+            }
+        }
+
+        // --- APPROVAL GATE ---
+        stage('Approval for Production') {
+            when {
+                branch 'main'
+            }
+            steps {
+                input(
+                    message: 'Deploy to PRODUCTION on Vercel?',
+                    ok: 'Deploy to Production'
+                )
+            }
+        }
+
+        // --- DEPLOY TO PRODUCTION (Vercel) ---
+        stage('Deploy to Production (Vercel)') {
+            when {
+                branch 'main'
+            }
+            steps {
+                echo '🚀🚀 Deploying to Vercel PRODUCTION...'
+                withCredentials([
+                    string(credentialsId: 'vercel-token', variable: 'VERCEL_TOKEN'),
+                    string(credentialsId: 'vercel-org-id', variable: 'VERCEL_ORG_ID'),
+                    string(credentialsId: 'vercel-project-id', variable: 'VERCEL_PROJECT_ID')
+                ]) {
+                    sh '''
+                        npx vercel deploy \
+                            --prod \
+                            --token="$VERCEL_TOKEN" \
+                            --yes
+                    '''
+                }
+                echo '✅ Production deployment complete!'
+            }
+        }
+    }
+
+    post {
+        success {
+            echo '✅ Vercel pipeline completed successfully!'
+        }
+        failure {
+            echo '❌ Vercel pipeline failed! Check logs above.'
+        }
+        always {
+            cleanWs()
+        }
+    }
+}

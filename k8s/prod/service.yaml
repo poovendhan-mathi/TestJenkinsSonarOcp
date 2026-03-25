@@ -1,0 +1,22 @@
+# ============================================================
+# Production Service — Exposes the app inside the cluster
+# ============================================================
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: expense-tracker
+  namespace: expense-tracker-prod
+  labels:
+    app: expense-tracker
+    environment: prod
+spec:
+  type: ClusterIP
+  selector:
+    app: expense-tracker
+    environment: prod
+  ports:
+    - port: 80
+      targetPort: 3000
+      protocol: TCP
+      name: http

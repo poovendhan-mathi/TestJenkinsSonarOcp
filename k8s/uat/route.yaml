@@ -1,0 +1,24 @@
+# ============================================================
+# UAT Route — OpenShift-specific (exposes Service externally)
+# ============================================================
+# On plain Kubernetes, use an Ingress instead.
+# ============================================================
+
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: expense-tracker
+  namespace: expense-tracker-uat
+  labels:
+    app: expense-tracker
+    environment: uat
+spec:
+  to:
+    kind: Service
+    name: expense-tracker
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

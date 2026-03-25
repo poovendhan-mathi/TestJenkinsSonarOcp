@@ -1,0 +1,22 @@
+# ============================================================
+# Production Route — OpenShift-specific
+# ============================================================
+
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: expense-tracker
+  namespace: expense-tracker-prod
+  labels:
+    app: expense-tracker
+    environment: prod
+spec:
+  to:
+    kind: Service
+    name: expense-tracker
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

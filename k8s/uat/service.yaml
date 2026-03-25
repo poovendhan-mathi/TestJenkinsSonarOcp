@@ -1,0 +1,22 @@
+# ============================================================
+# UAT Service — Exposes the app inside the cluster
+# ============================================================
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: expense-tracker
+  namespace: expense-tracker-uat
+  labels:
+    app: expense-tracker
+    environment: uat
+spec:
+  type: ClusterIP
+  selector:
+    app: expense-tracker
+    environment: uat
+  ports:
+    - port: 80
+      targetPort: 3000
+      protocol: TCP
+      name: http

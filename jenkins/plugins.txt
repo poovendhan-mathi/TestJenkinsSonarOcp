@@ -1,0 +1,43 @@
+# Jenkins plugins list
+# These are installed when building the custom Jenkins image
+
+# Core pipeline
+workflow-aggregator
+pipeline-stage-view
+pipeline-graph-view
+
+# Git integration
+git
+github
+github-branch-source
+
+# Node.js support
+nodejs
+
+# Docker support
+docker-pipeline
+docker-commons
+docker-workflow
+
+# SonarQube
+sonarqube-scanner
+
+# Credentials
+credentials-binding
+plain-credentials
+
+# Build tools
+timestamper
+ws-cleanup
+
+# Reporting
+junit
+htmlpublisher
+cobertura
+
+# UI
+blueocean
+dashboard-view
+
+# Notification (optional)
+mailer
