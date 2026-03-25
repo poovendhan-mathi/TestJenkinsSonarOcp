@@ -29,5 +29,8 @@ USER jenkins
 COPY plugins.txt /usr/share/jenkins/ref/plugins.txt
 RUN jenkins-plugin-cli --plugin-file /usr/share/jenkins/ref/plugins.txt
 
+# Copy Groovy init scripts (auto-create admin user, configure URL)
+COPY init-scripts/ /usr/share/jenkins/ref/init.groovy.d/
+
 # Skip initial setup wizard (plugins are pre-installed)
 ENV JAVA_OPTS="-Djenkins.install.runSetupWizard=false"

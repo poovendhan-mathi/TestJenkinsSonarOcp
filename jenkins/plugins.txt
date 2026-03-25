@@ -15,12 +15,11 @@ github-branch-source
 nodejs
 
 # Docker support
-docker-pipeline
 docker-commons
 docker-workflow
 
 # SonarQube
-sonarqube-scanner
+sonar
 
 # Credentials
 credentials-binding
