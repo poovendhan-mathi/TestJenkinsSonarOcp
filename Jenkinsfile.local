@@ -85,9 +85,9 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 echo '📊 Scanning code quality with SonarQube...'
-                withSonarQubeEnv('SonarQube-Local') {
-                    withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
-                        sh "${tool('SonarScanner')}/bin/sonar-scanner -Dsonar.token=\${SONAR_TOKEN}"
+                withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
+                    withSonarQubeEnv('SonarQube-Local') {
+                        sh "${tool('SonarScanner')}/bin/sonar-scanner -Dsonar.login=\${SONAR_TOKEN}"
                     }
                 }
             }
